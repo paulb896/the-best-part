@@ -1,5 +1,5 @@
 {
-  "name": "graphql-visual-builder",
+  "name": "the-best-part",
   "version": "0.0.1",
   "description": "",
   "main": "index.ts",
@@ -12,10 +12,13 @@
   "license": "ISC",
   "dependencies": {
     "apollo-server-koa": "^2.4.8",
+    "bent": "^1.5.10",
     "graphql": "14.2.1",
     "graphql-voyager": "^1.0.0-rc.26",
     "koa-bodyparser": "^4.2.1",
-    "koa-router": "^7.4.0"
+    "koa-router": "^7.4.0",
+    "koa-static": "^5.0.0",
+    "spotify-web-api-node": "^4.0.0"
   },
   "devDependencies": {
     "@types/koa": "^2.0.48",

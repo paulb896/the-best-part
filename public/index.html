@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Find and Save the best parts of songs</title>
+</head>
+<body>
+  <style>
+    #toggle_play {
+      font-size: 200%;
+      padding: 20px;
+      font-weight: 300;
+      min-width: 200px;
+    }
+    #toggle_play:hover {
+      cursor: pointer;
+    }
+    button {
+      cursor: pointer;
+    }
+    span {
+      margin-left: 2px;
+    }
+
+    .playerContainer {
+      height: 600px;
+      max-width: 500px;
+      display: inline-block;
+    }
+
+    .songSearchContainer {
+      height: 600px;
+      min-width: 400px;
+      max-width: 500px;
+      display: inline-block;
+      vertical-align: top;
+    }
+
+    #songs > div {
+      min-height: 35px;
+    }
+
+    #songs > div > span:hover {
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #favorite-songs > div {
+      min-height: 35px;
+    }
+
+    #favourite-songs > div > span:hover {
+      font-weight: bold;
+      cursor: pointer;
+    }
+  </style>
+  <header>
+    <a href="/login">Login</a>
+  </header>
+  <div class="playerContainer">
+    <button onclick="PLAYER.getCurrentState().then(state => PLAYER.seek(state.position - 12000))">Rewind</button>
+    <button id="toggle_play" onclick="window.PLAYER.togglePlay()">PLAY</button>
+    <button onclick="PLAYER.getCurrentState().then(state => PLAYER.seek(state.position + 12000))">Forward</button>
+    <div>Current Position: <span id="position"></span></div>
+    <div>Device ID: <span id="device_id"></span></div>
+    <div>Current Song: <span id="song"></span></div>
+    <div>Artist: <span id="artist"></span></div>
+    <div id="saveFavouriteSong"></div>
+    <img id="album_cover" style="width: 200px; height: 200px" />
+  </div>
+  <div class="songSearchContainer">
+    <h2>Search for a Song</h2>
+    <button id="songSearchButton">Search</button>
+    <input id="songSearchText" type="text" placeholder="Song/Artist/Album name"/>
+    <div id="songs"></div>
+  </div>
+  <div class="songSearchContainer">
+    <h2>Favourite Song Moments</h2>
+    <button id="loadFavouriteSongParts">Load Favourites</button>
+    <div id="favourite-songs"></div>
+  <script src="https://sdk.scdn.co/spotify-player.js"></script>
+  <script>
+    window.onSpotifyWebPlaybackSDKReady = () => {
+      const msToTime = (s) => {
+        const pad = (n, z = 2) => ('00' + n).slice(-z);
+
+        return pad(s/3.6e6|0) + ':' + pad((s%3.6e6)/6e4 | 0) + ':' + pad((s%6e4)/1000|0);
+      }
+      const authToken = document.cookie.split(';').find(cookie => cookie.indexOf('authToken=') >= 0).split('=')[1];
+      const player = new Spotify.Player({
+        name: 'Web Playback SDK Quick Start Player',
+        getOAuthToken: cb => { cb(authToken); }
+      });
+
+      // Error handling
+      player.addListener('initialization_error', ({ message }) => { console.error(message); });
+      player.addListener('authentication_error', ({ message }) => { console.error(message); });
+      player.addListener('account_error', ({ message }) => { console.error(message); });
+      player.addListener('playback_error', ({ message }) => { console.error(message); });
+
+      // Ready
+      player.addListener('ready', ({ device_id }) => {
+        console.log('Ready with Device ID', device_id);
+        console.log('Auth Token', authToken);
+        window.DEVICE_ID = device_id;
+        document.getElementById('device_id').textContent = device_id;
+      });
+
+      // Not Ready
+      player.addListener('not_ready', ({ device_id }) => {
+        console.log('Device ID has gone offline', device_id);
+      });
+
+      player.addListener('player_state_changed', ({
+        position,
+        duration,
+        track_window: { current_track },
+        paused
+      }) => {
+        console.log('current_track', current_track);
+        document.getElementById('song').textContent = current_track.name;
+        document.getElementById('artist').textContent = current_track.artists[0].name;
+        document.getElementById('toggle_play').textContent = paused ? 'PLAY' : 'PAUSE';
+        document.getElementById('album_cover').src = current_track.album.images[0].url;
+        document.getElementById('album_cover').width = current_track.album.images[0].width;
+        document.getElementById('album_cover').height = current_track.album.images[0].height;
+        const saveSongElement = document.getElementById('saveFavouriteSong');
+        saveSongElement.innerHTML = '';
+        const saveSongButton = document.createElement('button');
+        saveSongButton.setAttribute('songId', current_track.uri);
+        saveSongButton.innerHTML = 'Save Song Part';
+        saveSongButton.addEventListener('click', async (event) => {
+          const currentState = await player.getCurrentState();
+          const songId = event.srcElement.getAttribute('songId');
+          const startPosition = currentState.position;
+          const endPosition = startPosition + 15000;
+          console.log('position', currentState.position, songId);
+          const playSongResponse = await fetch('/graphql', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+            body: JSON.stringify({ query: `mutation { addFavouriteSongPart (songUri:"${songId}" startPosition: ${startPosition} endPosition: ${endPosition}) }` }),
+          });
+        })
+        saveSongElement.appendChild(saveSongButton);
+      });
+
+      player.connect().then(success => {
+        if (success) {
+
+          let checkingState = false;
+          setInterval(() => {
+            if (!checkingState) {
+              checkingState = true;
+              player.getCurrentState().then((currentState) => {
+                player.state;
+                if (currentState) {
+                  document.getElementById('position').textContent = msToTime(currentState.position);
+                }
+                checkingState = false;
+              })
+            }
+          }, 200);
+        }
+      })
+
+      window.PLAYER = player;
+    };
+  </script>
+  <script>
+    const SongSearch = {
+      bindSearchOnClick: (elementId) => {
+        const authToken = document.cookie.split(';').find(cookie => cookie.indexOf('authToken=') >= 0).split('=')[1];
+        document.getElementById(elementId).addEventListener('click', async (event) => {
+          const songSearchText = document.getElementById('songSearchText').value;
+          const songsList = document.getElementById('songs');
+          songsList.innerHTML = '';
+
+          const songSearchResponse = await fetch('/graphql', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+            body: JSON.stringify({ query: `{ songs(searchText: "${songSearchText}") { name thumbnailImage uri } }` }),
+          }).then(res => res.json());
+
+          const songs = songSearchResponse.data.songs;
+          songs.map((song) => {
+            const songElement = document.createElement('div');
+            const songNameElement = document.createElement('span');
+            songNameElement.setAttribute('song', song.uri);
+            songNameElement.addEventListener('click', async (event) => {
+              const trackId = event.srcElement.getAttribute('song');
+              const playSongResponse = await fetch('/graphql', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+                body: JSON.stringify({ query: `mutation { play (trackId:"${trackId}" playerId:"${window.DEVICE_ID}") }` }),
+              });
+            });
+            const songImage = document.createElement('img');
+            songImage.src = song.thumbnailImage;
+            songImage.width = 30;
+            songImage.height = 30;
+            songNameElement.textContent = song.name;
+            songElement.appendChild(songImage);
+            songElement.appendChild(songNameElement);
+            songsList.appendChild(songElement);
+          })
+        })
+      }
+    }
+
+    SongSearch.bindSearchOnClick('songSearchButton');
+  </script>
+  <script>
+      const BestSongParts = {
+        bindSearchOnClick: (elementId) => {
+          const msToTime = (s) => {
+            const pad = (n, z = 2) => ('00' + n).slice(-z);
+            console.log('s', s);
+            return pad(s/3.6e6|0) + ':' + pad((s%3.6e6)/6e4 | 0) + ':' + pad((s%6e4)/1000|0);
+          }
+          const authToken = document.cookie.split(';').find(cookie => cookie.indexOf('authToken=') >= 0).split('=')[1];
+          document.getElementById(elementId).addEventListener('click', async (event) => {
+            // // const songSearchText = document.getElementById('songSearchText').value;
+            const songsList = document.getElementById('favourite-songs');
+            songsList.innerHTML = '';
+
+            const songSearchResponse = await fetch('/graphql', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+              body: JSON.stringify({ query: `{ favouriteSongsParts { songUri startPosition endPosition song { thumbnailImage name } } }` }),
+            }).then(res => res.json());
+
+            const songs = songSearchResponse.data.favouriteSongsParts;
+            songs.map((song) => {
+              const songElement = document.createElement('div');
+              const songNameElement = document.createElement('span');
+              songNameElement.setAttribute('song', song.songUri);
+              songNameElement.setAttribute('position', song.startPosition);
+              songNameElement.addEventListener('click', async (event) => {
+                const trackId = event.srcElement.getAttribute('song');
+                const position = parseInt(event.srcElement.getAttribute('position'), 10);
+                const playSongResponse = await fetch('/graphql', {
+                  method: 'POST',
+                  credentials: 'include',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+                  body: JSON.stringify({ query: `mutation { play (trackId:"${trackId}" playerId:"${window.DEVICE_ID}" position: ${position}) }` }),
+                });
+              });
+
+              songNameElement.textContent = `${song.song.name}: ${msToTime(song.startPosition)} - ${msToTime(song.endPosition)}`;
+              const songImage = document.createElement('img');
+              songImage.src = song.song.thumbnailImage;
+              songImage.width = 30;
+              songImage.height = 30;
+              songElement.appendChild(songImage);
+              songElement.appendChild(songNameElement);
+              songsList.appendChild(songElement);
+            })
+          })
+        }
+      }
+
+      BestSongParts.bindSearchOnClick('loadFavouriteSongParts');
+    </script>
+</body>
+</html>
