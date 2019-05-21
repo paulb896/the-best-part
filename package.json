@@ -1,7 +1,7 @@
 {
   "name": "the-best-part",
   "version": "0.0.1",
-  "description": "",
+  "description": "Web app allows user to login with their Spotify account and save favourite parts of songs.",
   "main": "index.ts",
   "scripts": {
     "start": "ts-node src/index.ts",

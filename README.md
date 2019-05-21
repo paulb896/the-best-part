@@ -1,9 +1,8 @@
-# GraphQL Visual Builder
+# Save the Best Part of Your Favourite Spotify Songs
 
-Simple Apollo GraphQL Server using GraphQL Voyager.
+Web app allows user to login with their Spotify account and save favourite parts of songs. Simple Apollo GraphQL Server using GraphQL Voyager.
 
 [Spotify Dashboard](https://developer.spotify.com/dashboard/applications)
-
 
 # Setup
 
